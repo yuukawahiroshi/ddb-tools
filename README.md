@@ -1,3 +1,6 @@
+# ddb-packer
+A modified version of ddb-extraction and adds functionality for packaging ddi/ddb
+
 # ddb-extraction
 ![python>=3.10](https://img.shields.io/badge/python->=3.10-informational.svg)
 
@@ -8,7 +11,7 @@ Extract the samples of `ddb/ddi` soundbanks.
 
 ## Requirements
 ```
-pip install pyyaml
+pip install -r requirements.txt
 ```
 
 ## Examples
@@ -55,7 +58,6 @@ optional arguments:
                         silence interval seconds when "merge" is enabled, default to be 0
 ```
 
-
 ```
 usage: extract_frm2.py [-h] --src_path SRC_PATH [--dst_path DST_PATH]
 
@@ -71,6 +73,15 @@ usage: rename_wav.py [-h] --work_dir WORK_DIR
 optional arguments:
   -h, --help           show this help message and exit
   --work_dir WORK_DIR  working directory containing "ddi.yml" and "wav.zip".
+```
+
+```
+usage: pack_ddb.py [-h] --src_path SRC_PATH [--dst_path DST_PATH]
+
+options:
+  -h, --help           show this help message and exit
+  --src_path SRC_PATH  singer tree file path
+  --dst_path DST_PATH  destination path, default to be "./[singer name]"
 ```
 
 # ddi.yml
@@ -117,3 +128,7 @@ optional arguments:
           }
 }
 ```
+
+
+# Generate vvd
+[VVD Editor Pro](https://vvd.uselessbug.tk/en/)

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from utils.ddi_utils import read_ddi
+from utils.ddi_utils import DDIModel
 import argparse
 import os
 
@@ -32,8 +32,14 @@ def main():
     src_path, dst_path, save_temp, cat_only = parse_args()
     with open(src_path, 'rb') as ddi_f:
         ddi_bytes = ddi_f.read()
-    read_ddi(ddi_bytes, dst_path,
-             save_temp=save_temp, cat_only=cat_only)
+
+    ddi = DDIModel(ddi_bytes)
+    if save_temp or cat_only:
+        ddi.read(temp_path=dst_path, cat_only=cat_only)
+    else:
+        ddi.read()
+
+    ddi.save(dst_path)
 
 
 if __name__ == '__main__':
