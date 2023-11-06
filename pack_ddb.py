@@ -1,3 +1,5 @@
+#!/bin/env python3
+# I thought what I'd do was, I'd pretend I was one of those deaf-mutes.
 import argparse
 import io
 import re
@@ -93,70 +95,69 @@ def main():
             with open(art_file, "rb") as art_f:
                 art_bytes = art_f.read()
 
-            art_data = io.BytesIO(art_bytes)
-            
-            for i in range(0, len(art_items)):
-                art_item = art_items[i]
+            with io.BytesIO(art_bytes) as art_data:
+                for i in range(0, len(art_items)):
+                    art_item = art_items[i]
 
-                # Add Articulation EpR to ddb
-                for epr_info in art_item["epr"]:
-                    ddi_epr_pos, epr_offset = epr_info.split("=")
-                    ddb_epr_offset = ddb_f.tell()
+                    # Add Articulation EpR to ddb
+                    for epr_info in art_item["epr"]:
+                        ddi_epr_pos, epr_offset = epr_info.split("=")
+                        ddb_epr_offset = ddb_f.tell()
 
-                    ddi_epr_pos = int(ddi_epr_pos, 16)
-                    epr_offset = int(epr_offset, 16)
+                        ddi_epr_pos = int(ddi_epr_pos, 16)
+                        epr_offset = int(epr_offset, 16)
 
-                    art_data.seek(epr_offset)
+                        art_data.seek(epr_offset)
 
+                        hed = art_data.read(4).decode()
+                        if hed != "FRM2":
+                            raise Exception("Articulation file \"%s\" is broken" % art_file)
+                        
+                        frm_len = int.from_bytes(art_data.read(4), byteorder='little')
+                        epr_cutoff = epr_offset + frm_len
+
+                        ddb_f.write(art_bytes[epr_offset:epr_cutoff])
+
+                        # Change offset in ddi
+                        ddi_data.seek(ddi_epr_pos)
+                        ddi_data.write(ddb_epr_offset.to_bytes(8, byteorder="little"))
+
+                    ddi_snd_pos, t = art_item["snd"].split("=")
+                    snd_offset, _ = t.split("_")
+
+                    ddi_snd_pos2, t = art_item["snd_cutoff"].split("=")
+                    snd_offset2, _ = t.split("_")
+
+                    ddi_snd_pos = int(ddi_snd_pos, 16)
+                    snd_offset = int(snd_offset, 16)
+
+                    ddi_snd_pos2 = int(ddi_snd_pos2, 16)
+                    snd_offset2 = int(snd_offset2, 16)
+
+                    offset2_delta = snd_offset2 - snd_offset
+
+                    art_data.seek(snd_offset)
                     hed = art_data.read(4).decode()
-                    if hed != "FRM2":
+                    if hed != "SND ":
                         raise Exception("Articulation file \"%s\" is broken" % art_file)
                     
-                    frm_len = int.from_bytes(art_data.read(4), byteorder='little')
-                    epr_cutoff = epr_offset + frm_len
+                    snd_len = int.from_bytes(art_data.read(4), byteorder='little')
+                    snd_cutoff = snd_offset + snd_len
 
-                    ddb_f.write(art_bytes[epr_offset:epr_cutoff])
+                    ddb_snd_offset = ddb_f.tell() + 0x12
+
+                    snd_bytes = art_bytes[snd_offset:snd_cutoff]
+
+                    hed = snd_bytes[0:4].decode()
+                    if hed != "SND ":
+                        raise Exception("Articulation file \"%s\" is broken" % art_file)
+
+                    ddb_f.write(snd_bytes)
 
                     # Change offset in ddi
-                    ddi_data.seek(ddi_epr_pos)
-                    ddi_data.write(ddb_epr_offset.to_bytes(8, byteorder="little"))
-
-                ddi_snd_pos, t = art_item["snd"].split("=")
-                snd_offset, _ = t.split("_")
-
-                ddi_snd_pos2, t = art_item["snd2"].split("=")
-                snd_offset2, _ = t.split("_")
-
-                ddi_snd_pos = int(ddi_snd_pos, 16)
-                snd_offset = int(snd_offset, 16)
-
-                ddi_snd_pos2 = int(ddi_snd_pos2, 16)
-                snd_offset2 = int(snd_offset2, 16)
-
-                offset2_delta = snd_offset2 - snd_offset
-
-                art_data.seek(snd_offset)
-                hed = art_data.read(4).decode()
-                if hed != "SND ":
-                    raise Exception("Articulation file \"%s\" is broken")
-                
-                snd_len = int.from_bytes(art_data.read(4), byteorder='little')
-                snd_cutoff = snd_offset + snd_len
-
-                ddb_snd_offset = ddb_f.tell() + 0x12
-
-                snd_bytes = art_bytes[snd_offset:snd_cutoff]
-
-                hed = snd_bytes[0:4].decode()
-                if hed != "SND ":
-                    raise Exception("Articulation file \"%s\" is broken")
-
-                ddb_f.write(snd_bytes)
-
-                # Change offset in ddi
-                ddi_data.seek(ddi_snd_pos)
-                ddi_data.write(ddb_snd_offset.to_bytes(8, byteorder="little"))
-                ddi_data.write((ddb_snd_offset + offset2_delta).to_bytes(8, byteorder="little"))
+                    ddi_data.seek(ddi_snd_pos)
+                    ddi_data.write(ddb_snd_offset.to_bytes(8, byteorder="little"))
+                    ddi_data.write((ddb_snd_offset + offset2_delta).to_bytes(8, byteorder="little"))
 
         for phoneme, sta_items in ddi_model.ddi_data_dict["sta"].items():
             for i in range(0, len(sta_items)):
@@ -170,60 +171,55 @@ def main():
                 with open(sta_file, "rb") as sta_f:
                     sta_bytes = sta_f.read()
 
-                sta_data = io.BytesIO(sta_bytes)
+                with io.BytesIO(sta_bytes) as sta_data:
+                    # Add Stationary EpR to ddb
+                    for epr_info in sta_item["epr"]:
+                        ddi_epr_pos, epr_offset = epr_info.split("=")
+                        ddb_epr_offset = ddb_f.tell()
 
-                # Add Stationary EpR to ddb
-                for epr_info in sta_item["epr"]:
-                    ddi_epr_pos, epr_offset = epr_info.split("=")
-                    ddb_epr_offset = ddb_f.tell()
+                        ddi_epr_pos = int(ddi_epr_pos, 16)
+                        epr_offset = int(epr_offset, 16)
 
-                    ddi_epr_pos = int(ddi_epr_pos, 16)
-                    epr_offset = int(epr_offset, 16)
+                        sta_data.seek(epr_offset)
 
-                    sta_data.seek(epr_offset)
+                        hed = sta_data.read(4).decode()
+                        if hed != "FRM2":
+                            raise Exception("Stationary file \"%s\" is broken" % sta_file)
+                        
+                        frm_len = int.from_bytes(sta_data.read(4), byteorder='little')
+                        epr_cutoff = epr_offset + frm_len
 
-                    hed = sta_data.read(4).decode()
-                    if hed != "FRM2":
-                        raise Exception("Stationary file \"%s\" is broken")
+                        ddb_f.write(sta_bytes[epr_offset:epr_cutoff])
+
+                        # Change offset in ddi
+                        ddi_data.seek(ddi_epr_pos)
+                        ddi_data.write(ddb_epr_offset.to_bytes(8, byteorder="little"))
                     
-                    frm_len = int.from_bytes(sta_data.read(4), byteorder='little')
-                    epr_cutoff = epr_offset + frm_len
+                    ddi_snd_pos, snd_name = sta_item["snd"].split("=")
+                    snd_offset, snd_id = snd_name.split("_")
 
-                    ddb_f.write(sta_bytes[epr_offset:epr_cutoff])
+                    ddi_snd_pos = int(ddi_snd_pos, 16)
+                    snd_offset = int(snd_offset, 16)
+
+                    real_snd_offset = 0x3d
+                    sta_data.seek(real_snd_offset)
+                    hed = sta_data.read(4).decode()
+                    if hed != "SND ":
+                        raise Exception("Stationary file \"%s\" is broken" % sta_file)
+                    
+                    snd_len = int.from_bytes(sta_data.read(4), byteorder='little')
+                    snd_cutoff = real_snd_offset + snd_len
+
+                    delta_snd_offset = snd_offset - real_snd_offset
+                    ddb_snd_offset = ddb_f.tell() + delta_snd_offset
+
+                    snd_bytes = sta_bytes[real_snd_offset:snd_cutoff]
+
+                    ddb_f.write(snd_bytes)
 
                     # Change offset in ddi
-                    ddi_data.seek(ddi_epr_pos)
-                    ddi_data.write(ddb_epr_offset.to_bytes(8, byteorder="little"))
-                
-                ddi_snd_pos, snd_name = sta_item["snd"].split("=")
-                snd_offset, snd_id = snd_name.split("_")
-
-                ddi_snd_pos = int(ddi_snd_pos, 16)
-                snd_offset = int(snd_offset, 16)
-
-                real_snd_offset = 0x3d
-                sta_data.seek(real_snd_offset)
-                hed = sta_data.read(4).decode()
-                if hed != "SND ":
-                    raise Exception("Stationary file \"%s\" is broken")
-                
-                snd_len = int.from_bytes(sta_data.read(4), byteorder='little')
-                snd_cutoff = real_snd_offset + snd_len
-
-                delta_snd_offset = snd_offset - real_snd_offset
-                ddb_snd_offset = ddb_f.tell() + delta_snd_offset
-
-                snd_bytes = sta_bytes[real_snd_offset:snd_cutoff]
-
-                hed = snd_bytes[0:4].decode()
-                if hed != "SND ":
-                    raise Exception("Articulation file \"%s\" is broken")
-
-                ddb_f.write(snd_bytes)
-
-                # Change offset in ddi
-                ddi_data.seek(ddi_snd_pos)
-                ddi_data.write(ddb_snd_offset.to_bytes(4, byteorder="little"))
+                    ddi_data.seek(ddi_snd_pos)
+                    ddi_data.write(ddb_snd_offset.to_bytes(8, byteorder="little"))
 
     # Write DDI file
     print("Writing DDI...")

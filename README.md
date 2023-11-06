@@ -84,6 +84,19 @@ options:
   --dst_path DST_PATH  destination path, default to be "./[singer name]"
 ```
 
+```
+usage: mixins_ddb.py [-h] --src_path SRC_PATH --mixins_path MIXINS_PATH [--dst_path DST_PATH] [--mixins_items MIXINS_ITEMS]                                                                                     
+
+options:
+  -h, --help            show this help message and exit
+  --src_path SRC_PATH   source ddi file path
+  --mixins_path MIXINS_PATH
+                        the mixins ddi file path
+  --dst_path DST_PATH   output folder, default to be "./[singer name]/mixins"
+  --mixins_items MIXINS_ITEMS
+                        mixins items, separated by ","default to be "vqm", currently only support "vqm"
+```
+
 # ddi.yml
 `ddi.yml` file strucutre:
 ```

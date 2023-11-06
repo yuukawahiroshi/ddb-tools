@@ -3,6 +3,7 @@
 from __future__ import annotations
 import io
 import os
+import struct
 from typing import Optional
 
 artp_type = dict[str, str | list[str]]
@@ -44,6 +45,7 @@ class DDIModel:
         self.sta_data = {}
         self.art_data = {}
         self.vqm_data = {}
+        self.offset_map = {}
 
     def read(self, temp_path: Optional[str] = None, cat_only: bool = False):
         if temp_path or cat_only:
@@ -74,20 +76,26 @@ class DDIModel:
 
             # PHDC
             phdc_offset = self.ddi_bytes.find(b'PHDC')
-            self.ddi_data.seek(phdc_offset)
-            self.phdc_data = self.read_phdc()
-            if temp_path:
-                with open(os.path.join(temp_path, 'phdc.yml'), mode='w',
-                        encoding='utf-8') as phdc_f:
-                    phdc_str = yaml.dump(self.phdc_data, default_flow_style=False,
-                                        sort_keys=False)
-                    phdc_f.write(phdc_str)
+            if phdc_offset >= 0:
+                self.ddi_data.seek(phdc_offset)
+                self.phdc_data = self.read_phdc()
+
+                self.offset_map['phdc'] = [phdc_offset, self.ddi_data.tell()]
+
+                if temp_path:
+                    with open(os.path.join(temp_path, 'phdc.yml'), mode='w',
+                            encoding='utf-8') as phdc_f:
+                        phdc_str = yaml.dump(self.phdc_data, default_flow_style=False,
+                                            sort_keys=False)
+                        phdc_f.write(phdc_str)
 
             # TDB
             tdb_offset = self.ddi_bytes.find(b'\xFF'*8+b'TDB ')
             if tdb_offset >= 0:
                 self.ddi_data.seek(tdb_offset)
                 self.tdb_data = self.read_tdb()
+                self.offset_map['tdb'] = [tdb_offset, self.ddi_data.tell()]
+
                 if temp_path:
                     with open(os.path.join(temp_path, 'tdb.yml'), mode='w',
                             encoding='utf-8') as tdb_f:
@@ -99,11 +107,14 @@ class DDIModel:
             dbv_offset = self.ddi_bytes.find(b'\x00'*8+b'DBV ')
             self.ddi_data.seek(dbv_offset)
             self.read_dbv()
+            self.offset_map['dbv'] = [dbv_offset, self.ddi_data.tell()]
 
             # STA
             sta_offset = self.ddi_bytes.find(b'\x00'*8+b'STA ')-0x14-8
             self.ddi_data.seek(sta_offset)
             self.sta_data = self.read_sta()
+            self.offset_map['sta'] = [sta_offset, self.ddi_data.tell()]
+
             if temp_path:
                 with open(os.path.join(temp_path, 'sta.yml'), mode='w',
                         encoding='utf-8') as sta_f:
@@ -115,6 +126,8 @@ class DDIModel:
             art_offset = self.ddi_bytes.find(b'\x00'*8+b'ART ')-0x14-8
             self.ddi_data.seek(art_offset)
             self.art_data = self.read_art()
+            self.offset_map['art'] = [art_offset, self.ddi_data.tell()]
+
             if temp_path:
                 with open(os.path.join(temp_path, 'art.yml'), mode='w',
                         encoding='utf-8') as art_f:
@@ -126,9 +139,10 @@ class DDIModel:
             vqm_offset = self.ddi_bytes.find(b'\xFF'*8+b'VQM ')
             self.vqm_data = None
             if vqm_offset != -1:
-                vqm_offset -= 0xC2
                 self.ddi_data.seek(vqm_offset)
                 self.vqm_data = self.read_vqm()
+                self.offset_map['vqm'] = [vqm_offset, self.ddi_data.tell()]
+
                 if temp_path:
                     with open(os.path.join(temp_path, 'vqm.yml'), mode='w',
                             encoding='utf-8') as vqm_f:
@@ -150,9 +164,9 @@ class DDIModel:
                 'art': {},
             }
             vqm_dict = []
-            for idx, vqmp in vqm_data.items():
+            for idx, vqmp in self.vqm_data.items():
                 vqm_dict.append({'snd': vqmp['snd'], 'epr': vqmp['epr']})
-            self.ddi_data_dict['vqm'] = {'vqm': vqm_dict}
+            self.ddi_data_dict['vqm'] = vqm_dict
 
         sta_dict: dict[str, list[artp_type]] = {}
         for stau in self.sta_data.values():
@@ -171,7 +185,7 @@ class DDIModel:
                     art_dict[key] = []
                     for artp in artu['artp'].values():
                         art_dict[key].append({'snd': artp['snd'],
-                                            'snd2': artp['snd2'],
+                                            'snd_cutoff': artp['snd_cutoff'],
                                             'epr': artp['epr']})
             if 'art' in art.keys():
                 for sub_art in art['art'].values():
@@ -182,7 +196,7 @@ class DDIModel:
                             art_dict[key] = []
                             for artp in artu['artp'].values():
                                 art_dict[key].append({'snd': artp['snd'],
-                                                    'snd2': artp['snd2'],
+                                                    'snd_cutoff': artp['snd_cutoff'],
                                                     'epr': artp['epr']})
         self.ddi_data_dict['art'] = {key: art_dict[key]
                                 for key in sorted(art_dict.keys())}
@@ -327,29 +341,27 @@ class DDIModel:
             assert self.ddi_data.read(8) == b'\xFF'*8
             stap_num = int.from_bytes(self.ddi_data.read(4), byteorder='little')
             for j in range(stap_num):
-                stap_data: artp_type = {'snd': '', 'snd_unknown': '', 'epr': []}
+                stap_data: artp_type = {'snd': '', 'snd_cutoff': '', 'epr': []}
                 assert int.from_bytes(self.ddi_data.read(8), byteorder='little') == 0
                 assert self.ddi_data.read(4).decode() == 'STAp'
                 int.from_bytes(self.ddi_data.read(4), byteorder='little')  # == 0 Exception: Tonio.ddi
                 assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 0
                 assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 1
-                stap_data['unknown1'] = bytes_to_str(self.ddi_data.read(0x12))
-                int.from_bytes(self.ddi_data.read(4), byteorder='little')  # == 0 Exception: Tonio.ddi (0x19880)
-                assert self.ddi_data.read(4) == b'\x9A\x99\x19\x3F'
-                unknown = bytes_to_str(self.ddi_data.read(4))
-                # print(f'sta {i:4d} {j:4d} {unknown}')
-                # if env['unknown'] is None:
-                #     env['unknown'] = unknown
-                # else:
-                #     assert env['unknown'] == unknown
+                stap_data['unknown1'] = bytes_to_str(self.ddi_data.read(0x0a))
+                stap_data['pitch1'] = struct.unpack('<f', self.ddi_data.read(4))[0]
+                stap_data['pitch2'] = struct.unpack('<f', self.ddi_data.read(4))[0]
+                stap_data['unknown2'] = int.from_bytes(self.ddi_data.read(4), byteorder='little')  # == 0 Exception: Tonio.ddi (0x19880)
+                stap_data['dynamics'] = struct.unpack('<f', self.ddi_data.read(4))[0]
+                stap_data['unknown3'] = bytes_to_str(self.ddi_data.read(4))
+                
                 assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 0
                 assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 2
                 assert int.from_bytes(self.ddi_data.read(8), byteorder='little') == 0x3D
                 assert self.ddi_data.read(4).decode() == 'EMPT'
                 int.from_bytes(self.ddi_data.read(4), byteorder='little')  # == 0 Exception: Tonio.ddi
                 assert read_str(self.ddi_data) == 'SND'
-                unknown_snd = int.from_bytes(self.ddi_data.read(4), byteorder='little')
-                stap_data['snd_unknown'] = f'{unknown_snd:08x}'
+                snd_cutoff = int.from_bytes(self.ddi_data.read(4), byteorder='little')
+                stap_data['snd_cutoff'] = f'{snd_cutoff:08x}'
                 assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 0
                 assert self.ddi_data.read(4).decode() == 'EMPT'
                 int.from_bytes(self.ddi_data.read(4), byteorder='little')  # == 0 Exception: Tonio.ddi
@@ -370,10 +382,9 @@ class DDIModel:
                 # TODO: why this number?
                 snd_offset_pos = self.ddi_data.tell()
                 snd_offset = int.from_bytes(self.ddi_data.read(8), byteorder='little')
-                print(f"snd_delta: {snd_offset-0x003d:0>8x}")
                 stap_data['snd'] = f'{snd_offset_pos:0>8x}={snd_offset:016x}_{snd_identifier:08x}'
 
-                stap_data['unknown2'] = bytes_to_str(self.ddi_data.read(0xD))
+                stap_data['unknown4'] = bytes_to_str(self.ddi_data.read(0xD))
                 _ = self.ddi_data.read(4)
                 stap_idx = int(self.ddi_data.read(4).decode().strip('\x00'))
                 assert stap_idx not in stau_data['stap'].keys()
@@ -436,13 +447,17 @@ class DDIModel:
             artp_num = int.from_bytes(self.ddi_data.read(4), byteorder='little')
             for j in range(artp_num):
                 artp_data: artp_type = {'snd': '', 'snd_unknown': '', 'epr': []}
-                artp_data['unknown0'] = bytes_to_str(self.ddi_data.read(8))
+                dev_artp_offset = int.from_bytes(self.ddi_data.read(8), byteorder='little')
+                artp_data['dev_artp'] = f'{dev_artp_offset:0>8x}'
                 assert self.ddi_data.read(4).decode() == 'ARTp'
                 int.from_bytes(self.ddi_data.read(4), byteorder='little')  # == 0 Exception: Tonio.ddi
                 assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 0
                 assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 1
-                artp_data['unknown1'] = bytes_to_str(self.ddi_data.read(0x12))
-                assert self.ddi_data.read(8) == b'\x00\x00\x00\x00\x9A\x99\x19\x3F'
+                artp_data['unknown1'] = bytes_to_str(self.ddi_data.read(0x0a))
+                artp_data['pitch1'] = struct.unpack('<f', self.ddi_data.read(4))[0]
+                artp_data['pitch2'] = struct.unpack('<f', self.ddi_data.read(4))[0]
+                unknown = self.ddi_data.read(4) == b'\x00\x00\x00\x00'
+                artp_data['dynamics'] = struct.unpack('<f', self.ddi_data.read(4))[0]
                 unknown = bytes_to_str(self.ddi_data.read(4))
                 # print(f'art {i:4d} {j:4d} {unknown}')
                 # if env['unknown'] is None:
@@ -496,7 +511,7 @@ class DDIModel:
 
                 snd_offset2_pos = self.ddi_data.tell()
                 snd_offset2 = int.from_bytes(self.ddi_data.read(8), byteorder='little')  # == snd_offset+0x800  Exception: Tonio.ddi (0)
-                artp_data['snd2'] = f'{snd_offset2_pos:08x}={snd_offset2-0x12:016x}_{snd_identifier:08x}'
+                artp_data['snd_cutoff'] = f'{snd_offset2_pos:08x}={snd_offset2-0x12:016x}_{snd_identifier:08x}'
 
                 ddi_bytes: bytes = self.ddi_bytes[self.ddi_data.tell():]
                 unknown2_length = ddi_bytes.find(b'default')-4
@@ -525,23 +540,8 @@ class DDIModel:
 
     def read_vqm(self) -> dict[int, artp_type]:
         vqm_data: dict[int, artp_type] = {}
-        assert self.ddi_data.read(8) == b'\xFF'*8
-        assert int.from_bytes(read_arr(self.ddi_data), byteorder='little') == 3
-        assert self.ddi_data.read(8) == b'\xFF'*8
-        assert int.from_bytes(read_arr(self.ddi_data), byteorder='little') == 0
-        assert read_str(self.ddi_data) == 'notetonote'
-        assert self.ddi_data.read(8) == b'\xFF'*8
-        assert int.from_bytes(read_arr(self.ddi_data), byteorder='little') == 0
-        assert read_str(self.ddi_data) == 'attack'
-        assert self.ddi_data.read(8) == b'\xFF'*8
-        assert int.from_bytes(read_arr(self.ddi_data), byteorder='little') == 0
-        assert read_str(self.ddi_data) == 'release'
-        assert read_str(self.ddi_data) == 'note'
-        assert self.ddi_data.read(8) == b'\xFF'*8
-        assert int.from_bytes(read_arr(self.ddi_data), byteorder='little') == 0
-        assert read_str(self.ddi_data) == 'vibrato'
-        assert self.ddi_data.read(8) == b'\xFF'*8
 
+        assert self.ddi_data.read(8) == b'\xFF'*8
         assert self.ddi_data.read(4).decode() == 'VQM '
         assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 0
         assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 1
@@ -572,18 +572,19 @@ class DDIModel:
             epr_num = int.from_bytes(self.ddi_data.read(4), byteorder='little')
             epr_list: list[str] = []
             for k in range(epr_num):
+                ddi_epr_offset = self.ddi_data.tell()
                 epr_offset = int.from_bytes(self.ddi_data.read(8), byteorder='little')
-                epr_list.append(f'{epr_offset:0>8x}')
+                epr_list.append(f'{ddi_epr_offset:0>8x}={epr_offset:0>8x}')
             vqmp_data['epr'] = epr_list
             assert self.ddi_data.read(4) == b'\x44\xAC\x00\x00'
             assert self.ddi_data.read(2) == b'\x01\x00'
             snd_identifier = int.from_bytes(self.ddi_data.read(4), byteorder='little')
+            ddi_snd_offset = self.ddi_data.tell()
             snd_offset = int.from_bytes(self.ddi_data.read(8), byteorder='little')
-            vqmp_data['snd'] = f'{snd_offset:016x}_{snd_identifier:08x}'
+            vqmp_data['snd'] = f'{ddi_snd_offset:0>8x}={snd_offset:016x}_{snd_identifier:08x}'
             assert self.ddi_data.read(0x10) == b'\xFF'*0x10
             vqmp_idx = int(read_str(self.ddi_data))
             vqm_data[vqmp_idx] = vqmp_data
         assert read_str(self.ddi_data) == 'GROWL'
         assert read_str(self.ddi_data) == 'vqm'
-        assert read_str(self.ddi_data) == 'voice'
         return vqm_data

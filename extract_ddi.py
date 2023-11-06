@@ -34,11 +34,15 @@ def main():
         ddi_bytes = ddi_f.read()
 
     ddi = DDIModel(ddi_bytes)
+
+    print("Loading DDI file...")
     if save_temp or cat_only:
         ddi.read(temp_path=dst_path, cat_only=cat_only)
     else:
         ddi.read()
+    print("Done.")
 
+    print("Saving DDI meta file...")
     ddi.save(dst_path)
 
 
