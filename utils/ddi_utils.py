@@ -34,6 +34,18 @@ def read_arr(data: io.BytesIO) -> bytes:
     assert int.from_bytes(data.read(8), byteorder='little') == 1
     return data.read(4)
 
+def reverse_search(data: bytes, search: bytes, offset: int, limit: int = -1) -> int:
+    if limit == -1:
+        limit = offset - len(search)
+    offset -= len(search)
+    for i in range(offset, 0, -1):
+        if data[i:i+len(search)] == search:
+            return i
+        if offset - i > limit:
+            break
+
+    return -1
+
 # ----------------------------------------- #
 
 class DDIModel:
@@ -110,7 +122,8 @@ class DDIModel:
             self.offset_map['dbv'] = [dbv_offset, self.ddi_data.tell()]
 
             # STA
-            sta_offset = self.ddi_bytes.find(b'\x00'*8+b'STA ')-0x14-8
+            sta_offset = self.ddi_bytes.find(b'\x00'*8+b'STA ')
+            sta_offset = reverse_search(self.ddi_bytes, b'ARR ', sta_offset) - 8
             self.ddi_data.seek(sta_offset)
             self.sta_data = self.read_sta()
             self.offset_map['sta'] = [sta_offset, self.ddi_data.tell()]
@@ -123,7 +136,8 @@ class DDIModel:
                     sta_f.write(sta_str)
 
             # ART
-            art_offset = self.ddi_bytes.find(b'\x00'*8+b'ART ')-0x14-8
+            art_offset = self.ddi_bytes.find(b'\x00'*8+b'ART ')
+            art_offset = reverse_search(self.ddi_bytes, b'ARR ', art_offset) - 8
             self.ddi_data.seek(art_offset)
             self.art_data = self.read_art()
             self.offset_map['art'] = [art_offset, self.ddi_data.tell()]
@@ -342,6 +356,7 @@ class DDIModel:
             stap_num = int.from_bytes(self.ddi_data.read(4), byteorder='little')
             for j in range(stap_num):
                 stap_data: artp_type = {'snd': '', 'snd_cutoff': '', 'epr': []}
+                _pos = self.ddi_data.tell()
                 assert int.from_bytes(self.ddi_data.read(8), byteorder='little') == 0
                 assert self.ddi_data.read(4).decode() == 'STAp'
                 int.from_bytes(self.ddi_data.read(4), byteorder='little')  # == 0 Exception: Tonio.ddi
@@ -384,9 +399,9 @@ class DDIModel:
                 snd_offset = int.from_bytes(self.ddi_data.read(8), byteorder='little')
                 stap_data['snd'] = f'{snd_offset_pos:0>8x}={snd_offset:016x}_{snd_identifier:08x}'
 
-                stap_data['unknown4'] = bytes_to_str(self.ddi_data.read(0xD))
-                _ = self.ddi_data.read(4)
-                stap_idx = int(self.ddi_data.read(4).decode().strip('\x00'))
+                _pos = self.ddi_data.tell()
+                stap_data['unknown4'] = bytes_to_str(self.ddi_data.read(0x10))
+                stap_idx = read_str(self.ddi_data)
                 assert stap_idx not in stau_data['stap'].keys()
                 stau_data['stap'][stap_idx] = stap_data
             stau_data['stap'] = {k: stau_data['stap'][k]
