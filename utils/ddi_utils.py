@@ -22,11 +22,15 @@ art_type = dict[str, str | dict[int, artu_type | dict]]
 def bytes_to_str(data: bytes) -> str:
     return ' '.join([f'{piece:02x}' for piece in list(data)])
 
+def str_to_bytes(data: str) -> bytes:
+    return bytes([int(piece, 16) for piece in data.split(' ')])
 
 def read_str(data: io.BytesIO) -> str:
     str_size = int.from_bytes(data.read(4), byteorder='little')
     return data.read(str_size).decode()
 
+def str_to_data(data: str) -> bytes:
+    return len(data).to_bytes(4, byteorder='little') + data.encode()
 
 def read_arr(data: io.BytesIO) -> bytes:
     assert data.read(4).decode() == 'ARR '
@@ -40,6 +44,19 @@ def reverse_search(data: bytes, search: bytes, offset: int, limit: int = -1) -> 
     offset -= len(search)
     for i in range(offset, 0, -1):
         if data[i:i+len(search)] == search:
+            return i
+        if offset - i > limit:
+            break
+
+    return -1
+
+def stream_reverse_search(data: io.BufferedReader, search: bytes, offset: int, limit: int = -1) -> int:
+    if limit == -1:
+        limit = 1024 * 1024 * 10
+    offset -= len(search)
+    for i in range(offset, 0, -1):
+        data.seek(i)
+        if data.read(len(search)) == search:
             return i
         if offset - i > limit:
             break
@@ -355,7 +372,7 @@ class DDIModel:
             assert self.ddi_data.read(8) == b'\xFF'*8
             stap_num = int.from_bytes(self.ddi_data.read(4), byteorder='little')
             for j in range(stap_num):
-                stap_data: artp_type = {'snd': '', 'snd_cutoff': '', 'epr': []}
+                stap_data: artp_type = {'snd': '', 'snd_length': '', 'epr': []}
                 _pos = self.ddi_data.tell()
                 assert int.from_bytes(self.ddi_data.read(8), byteorder='little') == 0
                 assert self.ddi_data.read(4).decode() == 'STAp'
@@ -365,9 +382,9 @@ class DDIModel:
                 stap_data['unknown1'] = bytes_to_str(self.ddi_data.read(0x0a))
                 stap_data['pitch1'] = struct.unpack('<f', self.ddi_data.read(4))[0]
                 stap_data['pitch2'] = struct.unpack('<f', self.ddi_data.read(4))[0]
-                stap_data['unknown2'] = int.from_bytes(self.ddi_data.read(4), byteorder='little')  # == 0 Exception: Tonio.ddi (0x19880)
+                stap_data['unknown2'] = struct.unpack('<f', self.ddi_data.read(4))[0]
                 stap_data['dynamics'] = struct.unpack('<f', self.ddi_data.read(4))[0]
-                stap_data['unknown3'] = bytes_to_str(self.ddi_data.read(4))
+                stap_data['unknown3'] = struct.unpack('<f', self.ddi_data.read(4))[0]
                 
                 assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 0
                 assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 2
@@ -375,8 +392,7 @@ class DDIModel:
                 assert self.ddi_data.read(4).decode() == 'EMPT'
                 int.from_bytes(self.ddi_data.read(4), byteorder='little')  # == 0 Exception: Tonio.ddi
                 assert read_str(self.ddi_data) == 'SND'
-                snd_cutoff = int.from_bytes(self.ddi_data.read(4), byteorder='little')
-                stap_data['snd_cutoff'] = f'{snd_cutoff:08x}'
+                stap_data['snd_length'] = int.from_bytes(self.ddi_data.read(4), byteorder='little')
                 assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 0
                 assert self.ddi_data.read(4).decode() == 'EMPT'
                 int.from_bytes(self.ddi_data.read(4), byteorder='little')  # == 0 Exception: Tonio.ddi
@@ -578,10 +594,13 @@ class DDIModel:
             assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 0
             assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 0
             assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 1
-            vqmp_data['unknown'] = bytes_to_str(self.ddi_data.read(0x12))
-            assert self.ddi_data.read(8) == b'\x00\x00\x00\x00\x9A\x99\x19\x3F'
+            vqmp_data['unknown1'] = bytes_to_str(self.ddi_data.read(0x0a))
+            vqmp_data['pitch1'] = struct.unpack('<f', self.ddi_data.read(4))[0]
+            vqmp_data['pitch2'] = struct.unpack('<f', self.ddi_data.read(4))[0]
+            vqmp_data['unknown2'] = struct.unpack('<f', self.ddi_data.read(4))[0]
+            vqmp_data['dynamics'] = struct.unpack('<f', self.ddi_data.read(4))[0]
             # TODO: that may not be same as env['unknown']
-            bytes_to_str(self.ddi_data.read(4))
+            vqmp_data['unknown3'] = struct.unpack('<f', self.ddi_data.read(4))[0]
             assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 0
             assert self.ddi_data.read(4) == b'\xFF'*4
             epr_num = int.from_bytes(self.ddi_data.read(4), byteorder='little')

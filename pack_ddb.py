@@ -6,7 +6,7 @@ import re
 import os
 import os.path
 
-from utils.ddi_utils import DDIModel
+from utils.ddi_utils import DDIModel, reverse_search
 
 def escape_filename(filename: str):
     escaped = ""
@@ -109,8 +109,8 @@ def main():
 
                         art_data.seek(epr_offset)
 
-                        hed = art_data.read(4).decode()
-                        if hed != "FRM2":
+                        hed = art_data.read(4)
+                        if hed != b"FRM2":
                             raise Exception("Articulation file \"%s\" is broken" % art_file)
                         
                         frm_len = int.from_bytes(art_data.read(4), byteorder='little')
@@ -137,8 +137,8 @@ def main():
                     offset2_delta = snd_offset2 - snd_offset
 
                     art_data.seek(snd_offset)
-                    hed = art_data.read(4).decode()
-                    if hed != "SND ":
+                    hed = art_data.read(4)
+                    if hed != b"SND ":
                         raise Exception("Articulation file \"%s\" is broken" % art_file)
                     
                     snd_len = int.from_bytes(art_data.read(4), byteorder='little')
@@ -148,8 +148,8 @@ def main():
 
                     snd_bytes = art_bytes[snd_offset:snd_cutoff]
 
-                    hed = snd_bytes[0:4].decode()
-                    if hed != "SND ":
+                    hed = snd_bytes[0:4]
+                    if hed != b"SND ":
                         raise Exception("Articulation file \"%s\" is broken" % art_file)
 
                     ddb_f.write(snd_bytes)
@@ -182,8 +182,8 @@ def main():
 
                         sta_data.seek(epr_offset)
 
-                        hed = sta_data.read(4).decode()
-                        if hed != "FRM2":
+                        hed = sta_data.read(4)
+                        if hed != b"FRM2":
                             raise Exception("Stationary file \"%s\" is broken" % sta_file)
                         
                         frm_len = int.from_bytes(sta_data.read(4), byteorder='little')
@@ -201,10 +201,11 @@ def main():
                     ddi_snd_pos = int(ddi_snd_pos, 16)
                     snd_offset = int(snd_offset, 16)
 
-                    real_snd_offset = 0x3d
+                    # real_snd_offset = 0x3d
+                    real_snd_offset = reverse_search(sta_bytes, b"SND ", snd_offset)
                     sta_data.seek(real_snd_offset)
-                    hed = sta_data.read(4).decode()
-                    if hed != "SND ":
+                    hed = sta_data.read(4)
+                    if hed != b"SND ":
                         raise Exception("Stationary file \"%s\" is broken" % sta_file)
                     
                     snd_len = int.from_bytes(sta_data.read(4), byteorder='little')
