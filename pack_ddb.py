@@ -159,11 +159,11 @@ def main():
                     ddi_data.write(ddb_snd_offset.to_bytes(8, byteorder="little"))
                     ddi_data.write((ddb_snd_offset + offset2_delta).to_bytes(8, byteorder="little"))
 
-        for phoneme, sta_items in ddi_model.ddi_data_dict["sta"].items():
-            for i in range(0, len(sta_items)):
-                sta_item: dict[str, dict] = sta_items[i]
+        for _, sta_info in ddi_model.sta_data.items():
+            phoneme = sta_info["phoneme"]
+            for sta_idx, sta_item in sta_info["stap"].items():
 
-                sta_file = singer_path + "/voice/stationary/normal/" + escape_filename(phoneme) + "/" + escape_filename(str(i))
+                sta_file = singer_path + "/voice/stationary/normal/" + escape_filename(phoneme) + "/" + escape_filename(str(sta_idx))
                 print("Adding sta file: %s" % sta_file)
                 if not os.path.exists(sta_file):
                     raise Exception("Stationary file \"%s\" not found" % sta_file)

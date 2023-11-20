@@ -1,5 +1,7 @@
 #!/bin/env python3
 # I thought what I'd do was, I'd pretend I was one of those deaf-mutes.
+from __future__ import annotations
+from typing import TypedDict
 import argparse
 import io
 import re
@@ -17,6 +19,18 @@ class SmartFormatter(argparse.HelpFormatter):
             return text[2:].splitlines()  
         # this is the RawTextHelpFormatter._split_lines
         return argparse.HelpFormatter._split_lines(self, text, width)
+    
+class VQMMeta(TypedDict):
+    idx: str
+    epr: list[int]
+    snd_id: int
+    snd: int
+    unknown1: str
+    pitch1: float
+    pitch2: float
+    unknown2: float
+    unknown3: float
+    dynamics: float
 
 def byte_replace(src_bytes: bytes, offset: int, override_len: int, replace_bytes: bytes):
     return src_bytes[:offset] + replace_bytes + src_bytes[offset + override_len:]
@@ -74,194 +88,7 @@ def parse_args(args=None):  # : list[str]
 
     return src_path, src_singer_name, mixins_path, mixins_singer_name, dst_path, mixins_item, args
 
-
-def mixins_vqm(src_ddi_bytes: bytes, output_stream: io.BufferedWriter, mixins_ddi_model: DDIModel, mixins_ddb_stream: io.BufferedReader):
-    mixins_ddi_stream = mixins_ddi_model.ddi_data
-
-    if "vqm" not in mixins_ddi_model.ddi_data_dict:
-        raise Exception("Mixins DDI doesn't have vqm stream.")
-
-    print("Reading source DDI...")
-    src_ddi_model = DDIModel(src_ddi_bytes)
-    src_ddi_model.read()
-
-    src_ddi_stream = src_ddi_model.ddi_data
-
-    if "vqm" in src_ddi_model.ddi_data_dict:
-        print("Source DDI already has vqm stream, continue will replace it and won't remove vqm stream from ddb file.")
-        print("Continue? (Y/n)", end=" ")
-        choice = input().strip().lower()
-        if choice != "y" or choice != "":
-            return
-        
-    # Create new DDI
-    dst_mixins_bytes = mixins_ddi_stream.getvalue()
-    
-    ddi_vqm_bytes = dst_mixins_bytes[mixins_ddi_model.offset_map["vqm"][0]:mixins_ddi_model.offset_map["vqm"][1]]
-
-    if "vqm" in src_ddi_model.ddi_data_dict:
-        ddi_vqm_pos = src_ddi_model.offset_map["vqm"][0]
-        ddi_vqm_end_pos = src_ddi_model.offset_map["vqm"][1]
-    else:
-        ddi_vqm_pos = src_ddi_bytes.find(ddi_footer)
-        ddi_vqm_end_pos = ddi_vqm_pos
-
-        # Bump dbv_len
-        dbv_len_post = src_ddi_model.offset_map["dbv"][0] + 0x18
-        src_ddi_stream.seek(dbv_len_post)
-        src_ddi_dbv_len = int.from_bytes(src_ddi_stream.read(4), byteorder='little')
-        src_ddi_dbv_len += 1
-        src_ddi_stream.seek(dbv_len_post)
-        src_ddi_stream.write(src_ddi_dbv_len.to_bytes(4, byteorder='little'))
-
-        src_ddi_bytes = src_ddi_stream.getvalue()
-
-    dst_ddi_bytes = byte_replace(src_ddi_bytes, ddi_vqm_pos, ddi_vqm_end_pos - ddi_vqm_pos, ddi_vqm_bytes)
-
-    with io.BytesIO(dst_ddi_bytes) as dst_ddi_stream:
-        mixins_vqm_pos = mixins_ddi_model.offset_map["vqm"][0]
-        for vqm_info in mixins_ddi_model.ddi_data_dict["vqm"]:
-            for epr_info in vqm_info["epr"]:
-                ddi_epr_pos, epr_offset = epr_info.split("=")
-                ddb_epr_offset = output_stream.tell()
-
-                ddi_epr_pos = int(ddi_epr_pos, 16)
-                epr_offset = int(epr_offset, 16)
-
-                mixins_ddb_stream.seek(epr_offset)
-
-                hed = mixins_ddb_stream.read(4).decode()
-                if hed != "FRM2":
-                    raise Exception("Mixins DDB file is broken")
-                
-                frm_len = int.from_bytes(mixins_ddb_stream.read(4), byteorder='little')
-
-                mixins_ddb_stream.seek(epr_offset)
-                frm_bytes = mixins_ddb_stream.read(frm_len)
-
-                output_stream.write(frm_bytes)
-
-                # Change FRM offset in ddi
-                dst_ddi_stream.seek(ddi_epr_pos - mixins_vqm_pos + ddi_vqm_pos)
-                dst_ddi_stream.write(ddb_epr_offset.to_bytes(8, byteorder="little"))
-
-            ddi_snd_pos, snd_name = vqm_info["snd"].split("=")
-            snd_offset, snd_id = snd_name.split("_")
-
-            ddi_snd_pos = int(ddi_snd_pos, 16)
-            snd_offset = int(snd_offset, 16)
-
-            mixins_ddb_stream.seek(snd_offset)
-            hed = mixins_ddb_stream.read(4).decode()
-            if hed != "SND ":
-                raise Exception("Mixins DDB file is broken")
-            
-            snd_len = int.from_bytes(mixins_ddb_stream.read(4), byteorder='little')
-
-            ddb_snd_offset = output_stream.tell()
-
-            mixins_ddb_stream.seek(snd_offset)
-            snd_bytes = mixins_ddb_stream.read(snd_len)
-
-            hed = snd_bytes[0:4].decode()
-            if hed != "SND ":
-                raise Exception("Mixins DDB file is broken")
-
-            output_stream.write(snd_bytes)
-
-            # Change SND offset in ddi
-            dst_ddi_stream.seek(ddi_snd_pos - mixins_vqm_pos + ddi_vqm_pos)
-            dst_ddi_stream.write(ddb_snd_offset.to_bytes(8, byteorder="little"))
-
-        return dst_ddi_stream.getvalue()
-    
-def mixins_sta2vqm(src_ddi_bytes: bytes, output_stream: io.BufferedWriter, mixins_ddi_model: DDIModel, mixins_ddb_stream: io.BufferedReader, sta2vqm_phoneme: str):
-    mixins_ddi_stream = mixins_ddi_model.ddi_data
-
-    print("Reading source DDI...")
-    src_ddi_model = DDIModel(src_ddi_bytes)
-    src_ddi_model.read()
-
-    src_ddi_stream = src_ddi_model.ddi_data
-
-    if "vqm" in src_ddi_model.ddi_data_dict:
-        print("Source DDI already has vqm stream, continue will replace it and won't remove vqm stream from ddb file.")
-        print("Continue? (Y/n)", end=" ")
-        choice = input().strip().lower()
-        if choice != "y" or choice != "":
-            return
-        
-    # Find stationary in mixins
-    mixins_sta_items = None
-    for _, sta_items in mixins_ddi_model.sta_data.items():
-        if sta_items["phoneme"] == sta2vqm_phoneme:
-            mixins_sta_items = sta_items
-            break
-    
-    if mixins_sta_items is None:
-        raise Exception("Mixins DDI doesn't have stationary entry for phoneme \"%s\"" % sta2vqm_phoneme)
-
-    vqm_meta_list = []
-    for sta_idx, sta_item in mixins_sta_items["stap"].items():
-        output_epr_list = []
-
-        # EpR
-        for epr_info in sta_item["epr"]:
-            epr_offset = epr_info.split("=")
-            ddb_epr_offset = output_stream.tell()
-
-            epr_offset = int(epr_offset[1], 16)
-
-            mixins_ddb_stream.seek(epr_offset)
-
-            hed = mixins_ddb_stream.read(4)
-            if hed != b"FRM2":
-                raise Exception("Mixins DDB file is broken")
-            
-            frm_len = int.from_bytes(mixins_ddb_stream.read(4), byteorder='little')
-            epr_cutoff = epr_offset + frm_len
-
-            mixins_ddb_stream.seek(epr_offset)
-            frm_bytes = mixins_ddb_stream.read(frm_len)
-            output_stream.write(frm_bytes)
-
-            output_epr_list.append(ddb_epr_offset)
-
-        # SND
-        ddi_snd_pos, snd_name = sta_item["snd"].split("=")
-        snd_offset, snd_id = snd_name.split("_")
-
-        ddi_snd_pos = int(ddi_snd_pos, 16)
-        snd_offset = int(snd_offset, 16)
-        snd_id = int(snd_id, 16)
-
-        real_snd_offset = stream_reverse_search(mixins_ddb_stream, b"SND ", snd_offset)
-        mixins_ddb_stream.seek(real_snd_offset)
-        hed = mixins_ddb_stream.read(4)
-        if hed != b"SND ":
-            raise Exception("Mixins DDB file is broken")
-        
-        snd_len = int.from_bytes(mixins_ddb_stream.read(4), byteorder='little')
-        
-        mixins_ddb_stream.seek(real_snd_offset)
-        snd_bytes = mixins_ddb_stream.read(snd_len)
-
-        ddb_snd_offset = output_stream.tell()
-        output_stream.write(snd_bytes)
-
-        vqm_meta_list.append({
-            "idx": sta_idx,
-            "epr": output_epr_list,
-            "snd_id": snd_id,
-            "snd": ddb_snd_offset,
-            "unknown1": sta_item["unknown1"],
-            "pitch1": sta_item["pitch1"],
-            "pitch2": sta_item["pitch2"],
-            "unknown2": sta_item["unknown2"],
-            "unknown3": sta_item["unknown3"],
-            "dynamics": sta_item["dynamics"],
-        })
-
+def _create_vqm_stream(vqm_meta_list: list[VQMMeta]):
     # Create VQM struct
     vqm_stream = io.BytesIO()
     vqm_stream.write(b'\xFF'*8)
@@ -311,7 +138,218 @@ def mixins_sta2vqm(src_ddi_bytes: bytes, output_stream: io.BufferedWriter, mixin
     vqm_stream.write(str_to_data("GROWL"))
     vqm_stream.write(str_to_data("vqm"))
 
+    return vqm_stream
+
+
+def mixins_vqm(src_ddi_bytes: bytes, output_stream: io.BufferedWriter, mixins_ddi_model: DDIModel, mixins_ddb_stream: io.BufferedReader):
+    mixins_ddi_stream = mixins_ddi_model.ddi_data
+
+    if "vqm" not in mixins_ddi_model.ddi_data_dict:
+        raise Exception("Mixins DDI doesn't have vqm stream.")
+
+    print("Reading source DDI...")
+    src_ddi_model = DDIModel(src_ddi_bytes)
+    src_ddi_model.read()
+
+    src_ddi_stream = src_ddi_model.ddi_data
+
+    if "vqm" in src_ddi_model.ddi_data_dict:
+        print("Source DDI already has vqm stream, continue will replace it and won't remove vqm stream from ddb file.")
+        print("Continue? (Y/n)", end=" ")
+        choice = input().strip().lower()
+        if choice != "y" or choice != "":
+            return
+        
+    vqm_meta_list: list[VQMMeta] = []
+    for vqm_idx, vqm_info in mixins_ddi_model.vqm_data.items():
+        epr_list = []
+        for epr_info in vqm_info["epr"]:
+            ddi_epr_pos, epr_offset = epr_info.split("=")
+            ddb_epr_offset = output_stream.tell()
+
+            ddi_epr_pos = int(ddi_epr_pos, 16)
+            epr_offset = int(epr_offset, 16)
+
+            mixins_ddb_stream.seek(epr_offset)
+
+            hed = mixins_ddb_stream.read(4).decode()
+            if hed != "FRM2":
+                raise Exception("Mixins DDB file is broken")
+            
+            frm_len = int.from_bytes(mixins_ddb_stream.read(4), byteorder='little')
+
+            mixins_ddb_stream.seek(epr_offset)
+            frm_bytes = mixins_ddb_stream.read(frm_len)
+
+            output_stream.write(frm_bytes)
+
+            epr_list.append(ddb_epr_offset)
+
+        ddi_snd_pos, snd_name = vqm_info["snd"].split("=")
+        snd_offset, snd_id = snd_name.split("_")
+
+        ddi_snd_pos = int(ddi_snd_pos, 16)
+        snd_offset = int(snd_offset, 16)
+        snd_id = int(snd_id, 16)
+
+        mixins_ddb_stream.seek(snd_offset)
+        hed = mixins_ddb_stream.read(4).decode()
+        if hed != "SND ":
+            raise Exception("Mixins DDB file is broken")
+        
+        snd_len = int.from_bytes(mixins_ddb_stream.read(4), byteorder='little')
+
+        ddb_snd_offset = output_stream.tell()
+
+        mixins_ddb_stream.seek(snd_offset)
+        snd_bytes = mixins_ddb_stream.read(snd_len)
+
+        hed = snd_bytes[0:4].decode()
+        if hed != "SND ":
+            raise Exception("Mixins DDB file is broken")
+
+        output_stream.write(snd_bytes)
+
+        vqm_meta_list.append({
+            "idx": vqm_idx,
+            "epr": epr_list,
+            "snd_id": snd_id,
+            "snd": ddb_snd_offset,
+            "unknown1": vqm_info["unknown1"],
+            "pitch1": vqm_info["pitch1"],
+            "pitch2": vqm_info["pitch2"],
+            "unknown2": vqm_info["unknown2"],
+            "unknown3": vqm_info["unknown3"],
+            "dynamics": vqm_info["dynamics"],
+        })
+            
+    
     # Create new DDI
+    vqm_stream = _create_vqm_stream(vqm_meta_list)
+    ddi_vqm_bytes = vqm_stream.getvalue()
+
+    if "vqm" in src_ddi_model.ddi_data_dict:
+        ddi_vqm_pos = src_ddi_model.offset_map["vqm"][0]
+        ddi_vqm_end_pos = src_ddi_model.offset_map["vqm"][1]
+    else:
+        ddi_vqm_pos = src_ddi_bytes.find(ddi_footer)
+        ddi_vqm_end_pos = ddi_vqm_pos
+
+        # Bump dbv_len
+        dbv_len_post = src_ddi_model.offset_map["dbv"][0] + 0x18
+        src_ddi_stream.seek(dbv_len_post)
+        src_ddi_dbv_len = int.from_bytes(src_ddi_stream.read(4), byteorder='little')
+        src_ddi_dbv_len += 1
+        src_ddi_stream.seek(dbv_len_post)
+        src_ddi_stream.write(src_ddi_dbv_len.to_bytes(4, byteorder='little'))
+
+        src_ddi_bytes = src_ddi_stream.getvalue()
+
+    dst_ddi_bytes = byte_replace(src_ddi_bytes, ddi_vqm_pos, ddi_vqm_end_pos - ddi_vqm_pos, ddi_vqm_bytes)
+
+    return dst_ddi_bytes
+
+    
+def mixins_sta2vqm(src_ddi_bytes: bytes, output_stream: io.BufferedWriter, mixins_ddi_model: DDIModel, mixins_ddb_stream: io.BufferedReader, sta2vqm_phoneme: str):
+    mixins_ddi_stream = mixins_ddi_model.ddi_data
+
+    print("Reading source DDI...")
+    src_ddi_model = DDIModel(src_ddi_bytes)
+    src_ddi_model.read()
+
+    src_ddi_stream = src_ddi_model.ddi_data
+
+    if "vqm" in src_ddi_model.ddi_data_dict:
+        print("Source DDI already has vqm stream, continue will replace it and won't remove vqm stream from ddb file.")
+        print("Continue? (Y/n)", end=" ")
+        choice = input().strip().lower()
+        if choice != "y" or choice != "":
+            return
+        
+    # Find stationary in mixins
+    mixins_sta_items = None
+    for _, sta_items in mixins_ddi_model.sta_data.items():
+        if sta_items["phoneme"] == sta2vqm_phoneme:
+            mixins_sta_items = sta_items
+            break
+    
+    if mixins_sta_items is None:
+        raise Exception("Mixins DDI doesn't have stationary entry for phoneme \"%s\"" % sta2vqm_phoneme)
+
+    vqm_meta_list: list[VQMMeta] = []
+    vqm_idx = 0
+    for sta_idx, sta_item in mixins_sta_items["stap"].items():
+        output_epr_list = []
+
+        # EpR
+        epr_list = sta_item["epr"]
+        if len(epr_list) < 100:
+            print(f"Warning: EpR count is less than 100, EpR count: {len(epr_list)}")
+            continue
+
+        epr_list = epr_list[0:100]
+        for epr_info in epr_list:
+            epr_offset = epr_info.split("=")
+            ddb_epr_offset = output_stream.tell()
+
+            epr_offset = int(epr_offset[1], 16)
+
+            mixins_ddb_stream.seek(epr_offset)
+
+            hed = mixins_ddb_stream.read(4)
+            if hed != b"FRM2":
+                raise Exception("Mixins DDB file is broken")
+            
+            frm_len = int.from_bytes(mixins_ddb_stream.read(4), byteorder='little')
+            epr_cutoff = epr_offset + frm_len
+
+            mixins_ddb_stream.seek(epr_offset)
+            frm_bytes = mixins_ddb_stream.read(frm_len)
+            output_stream.write(frm_bytes)
+
+            output_epr_list.append(ddb_epr_offset)
+
+        # SND
+        ddi_snd_pos, snd_name = sta_item["snd"].split("=")
+        snd_offset, snd_id = snd_name.split("_")
+
+        ddi_snd_pos = int(ddi_snd_pos, 16)
+        snd_offset = int(snd_offset, 16)
+        snd_id = int(snd_id, 16)
+
+        real_snd_offset = stream_reverse_search(mixins_ddb_stream, b"SND ", snd_offset)
+        print(f"Delta SND offset: {snd_offset - real_snd_offset:0>8x}")
+
+        mixins_ddb_stream.seek(real_snd_offset)
+        hed = mixins_ddb_stream.read(4)
+        if hed != b"SND ":
+            raise Exception("Mixins DDB file is broken")
+        
+        snd_len = int.from_bytes(mixins_ddb_stream.read(4), byteorder='little')
+        
+        mixins_ddb_stream.seek(real_snd_offset)
+        snd_bytes = mixins_ddb_stream.read(snd_len)
+
+        ddb_snd_offset = output_stream.tell()
+        output_stream.write(snd_bytes)
+
+        vqm_meta_list.append({
+            "idx": str(vqm_idx),
+            "epr": output_epr_list,
+            "snd_id": snd_id,
+            "snd": ddb_snd_offset,
+            "unknown1": '2c fb b7 5b 72 93 e2 3f 01 00',
+            "pitch1": sta_item["pitch1"],
+            "pitch2": sta_item["pitch2"],
+            "unknown2": sta_item["unknown2"],
+            "unknown3": sta_item["unknown3"],
+            "dynamics": sta_item["dynamics"],
+        })
+
+        vqm_idx += 1
+
+    # Create new DDI
+    vqm_stream = _create_vqm_stream(vqm_meta_list)
     ddi_vqm_bytes = vqm_stream.getvalue()
 
     if "vqm" in src_ddi_model.ddi_data_dict:

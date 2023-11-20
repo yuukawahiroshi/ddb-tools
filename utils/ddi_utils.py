@@ -30,6 +30,7 @@ def read_str(data: io.BytesIO) -> str:
     return data.read(str_size).decode()
 
 def str_to_data(data: str) -> bytes:
+    data = str(data)
     return len(data).to_bytes(4, byteorder='little') + data.encode()
 
 def read_arr(data: io.BytesIO) -> bytes:
@@ -474,7 +475,8 @@ class DDIModel:
             # TODO: why to be 1?
             assert int.from_bytes(self.ddi_data.read(8),
                                 byteorder='little') in [0, 1]
-            assert self.ddi_data.read(8) == b'\xFF'*8
+            self.ddi_data.read(4)
+            assert self.ddi_data.read(4) == b'\xFF'*4
             artp_num = int.from_bytes(self.ddi_data.read(4), byteorder='little')
             for j in range(artp_num):
                 artp_data: artp_type = {'snd': '', 'snd_unknown': '', 'epr': []}
@@ -487,9 +489,9 @@ class DDIModel:
                 artp_data['unknown1'] = bytes_to_str(self.ddi_data.read(0x0a))
                 artp_data['pitch1'] = struct.unpack('<f', self.ddi_data.read(4))[0]
                 artp_data['pitch2'] = struct.unpack('<f', self.ddi_data.read(4))[0]
-                unknown = self.ddi_data.read(4) == b'\x00\x00\x00\x00'
+                artp_data['unknown2'] = struct.unpack('<f', self.ddi_data.read(4))[0]
                 artp_data['dynamics'] = struct.unpack('<f', self.ddi_data.read(4))[0]
-                unknown = bytes_to_str(self.ddi_data.read(4))
+                artp_data['unknown3'] = struct.unpack('<f', self.ddi_data.read(4))[0]
                 # print(f'art {i:4d} {j:4d} {unknown}')
                 # if env['unknown'] is None:
                 #     env['unknown'] = unknown
@@ -546,9 +548,8 @@ class DDIModel:
 
                 ddi_bytes: bytes = self.ddi_bytes[self.ddi_data.tell():]
                 unknown2_length = ddi_bytes.find(b'default')-4
-                artp_data['unknown2'] = bytes_to_str(self.ddi_data.read(
+                artp_data['unknown4'] = bytes_to_str(self.ddi_data.read(
                     unknown2_length))
-                # print(f'{unknown2_length:x}')
                 assert read_str(self.ddi_data) == 'default'
 
                 assert artp_idx not in artu_data['artp'].keys()
