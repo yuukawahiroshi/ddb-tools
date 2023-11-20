@@ -1,5 +1,5 @@
-# ddb-packer
-A modified version of ddb-extraction and adds functionality for packaging ddi/ddb
+# ddb-tools
+A modified version of ddb-extraction and adds functionality for: packaging ddi/ddb, mixins ddb
 
 # ddb-extraction
 ![python>=3.10](https://img.shields.io/badge/python->=3.10-informational.svg)
@@ -141,7 +141,6 @@ options:
           }
 }
 ```
-
 
 # Generate vvd
 [VVD Editor Pro](https://vvd.uselessbug.tk/en/)
