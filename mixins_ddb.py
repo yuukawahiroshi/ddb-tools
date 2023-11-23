@@ -25,6 +25,7 @@ class VQMMeta(TypedDict):
     epr: list[int]
     snd_id: int
     snd: int
+    fs: int
     unknown1: str
     pitch1: float
     pitch2: float
@@ -127,7 +128,7 @@ def _create_vqm_stream(vqm_meta_list: list[VQMMeta]):
             vqm_stream.write(epr_offset.to_bytes(8, byteorder='little'))
 
         # SND
-        vqm_stream.write(b'\x44\xAC\x00\x00')
+        vqm_stream.write(vqm_meta["fs"].to_bytes(4, byteorder='little'))
         vqm_stream.write(b'\x01\x00')
         vqm_stream.write(vqm_meta["snd_id"].to_bytes(4, byteorder='little'))
         vqm_stream.write(vqm_meta["snd"].to_bytes(8, byteorder='little'))
@@ -215,6 +216,7 @@ def mixins_vqm(src_ddi_bytes: bytes, output_stream: io.BufferedWriter, mixins_dd
             "epr": epr_list,
             "snd_id": snd_id,
             "snd": ddb_snd_offset,
+            "fs": vqm_info["fs"],
             "unknown1": vqm_info["unknown1"],
             "pitch1": vqm_info["pitch1"],
             "pitch2": vqm_info["pitch2"],
