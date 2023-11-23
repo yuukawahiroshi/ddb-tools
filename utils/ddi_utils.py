@@ -407,7 +407,7 @@ class DDIModel:
                                                 byteorder='little')
                     epr_list.append(f'{epr_offset_pos:0>8x}={epr_offset:0>8x}')
                 stap_data['epr'] = epr_list
-                assert self.ddi_data.read(4) == b'\x44\xAC\x00\x00'
+                stap_data['fs'] = int.from_bytes(self.ddi_data.read(4), byteorder='little')
                 assert self.ddi_data.read(2) == b'\x01\x00'
                 snd_identifier = int.from_bytes(self.ddi_data.read(4),
                                                 byteorder='little')
@@ -519,7 +519,7 @@ class DDIModel:
                                                     byteorder='little')
                         epr_list.append(f'{epr_offset_pos:0>8x}={epr_offset:0>8x}')
                     artp_data['epr'] = epr_list
-                    assert self.ddi_data.read(4) == b'\x44\xAC\x00\x00'
+                    artp_data['fs'] = int.from_bytes(self.ddi_data.read(4), byteorder='little')
                     assert self.ddi_data.read(2) == b'\x01\x00'
                 except AssertionError:
                     self.ddi_data.seek(loc)
@@ -532,7 +532,7 @@ class DDIModel:
                                                     byteorder='little')
                         epr_list.append(f'{epr_offset_pos:0>8x}={epr_offset:0>8x}')
                     artp_data['epr'] = epr_list
-                    assert self.ddi_data.read(4) == b'\x44\xAC\x00\x00'
+                    artp_data['fs'] = int.from_bytes(self.ddi_data.read(4), byteorder='little')
                     assert self.ddi_data.read(2) == b'\x01\x00'
                     
                 snd_identifier = int.from_bytes(self.ddi_data.read(4),
@@ -611,7 +611,7 @@ class DDIModel:
                 epr_offset = int.from_bytes(self.ddi_data.read(8), byteorder='little')
                 epr_list.append(f'{ddi_epr_offset:0>8x}={epr_offset:0>8x}')
             vqmp_data['epr'] = epr_list
-            assert self.ddi_data.read(4) == b'\x44\xAC\x00\x00'
+            vqmp_data['fs'] = int.from_bytes(self.ddi_data.read(4), byteorder='little')
             assert self.ddi_data.read(2) == b'\x01\x00'
             snd_identifier = int.from_bytes(self.ddi_data.read(4), byteorder='little')
             ddi_snd_offset = self.ddi_data.tell()
