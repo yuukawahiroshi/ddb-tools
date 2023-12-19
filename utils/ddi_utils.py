@@ -19,8 +19,11 @@ art_type = dict[str, str | dict[int, artu_type | dict]]
 #     snd_cutoff: int
 
 
-def bytes_to_str(data: bytes) -> str:
-    return ' '.join([f'{piece:02x}' for piece in list(data)])
+def bytes_to_str(data: bytes, add_spaces: bool = True) -> str:
+    if add_spaces:
+        return ' '.join([f'{piece:02x}' for piece in list(data)])
+    else:
+        return ''.join([f'{piece:02x}' for piece in list(data)])
 
 def str_to_bytes(data: str) -> bytes:
     return bytes([int(piece, 16) for piece in data.split(' ')])
@@ -197,14 +200,14 @@ class DDIModel:
             }
             vqm_dict = []
             for idx, vqmp in self.vqm_data.items():
-                vqm_dict.append({'snd': vqmp['snd'], 'epr': vqmp['epr']})
+                vqm_dict.append({'snd': vqmp['snd'], 'epr': vqmp['epr'], 'pitch': vqmp['pitch1']})
             self.ddi_data_dict['vqm'] = vqm_dict
 
         sta_dict: dict[str, list[artp_type]] = {}
         for stau in self.sta_data.values():
             stau_dict: list[artp_type] = []
             for idx, stap in stau['stap'].items():
-                stau_dict.append({'snd': stap['snd'], 'epr': stap['epr']})
+                stau_dict.append({'snd': stap['snd'], 'epr': stap['epr'], 'pitch': stap['pitch1']})
             sta_dict[stau['phoneme']] = stau_dict
         self.ddi_data_dict['sta'] = {key: sta_dict[key]
                                 for key in sorted(sta_dict.keys())}
@@ -218,7 +221,8 @@ class DDIModel:
                     for artp in artu['artp'].values():
                         art_dict[key].append({'snd': artp['snd'],
                                             'snd_cutoff': artp['snd_cutoff'],
-                                            'epr': artp['epr']})
+                                            'epr': artp['epr'],
+                                            'pitch': artp['pitch1']})
             if 'art' in art.keys():
                 for sub_art in art['art'].values():
                     sub_art: art_type
@@ -229,7 +233,8 @@ class DDIModel:
                             for artp in artu['artp'].values():
                                 art_dict[key].append({'snd': artp['snd'],
                                                     'snd_cutoff': artp['snd_cutoff'],
-                                                    'epr': artp['epr']})
+                                                    'epr': artp['epr'],
+                                                    'pitch': artp['pitch1']})
         self.ddi_data_dict['art'] = {key: art_dict[key]
                                 for key in sorted(art_dict.keys())}
 

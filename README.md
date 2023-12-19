@@ -47,15 +47,14 @@ optional arguments:
 ```
 
 ```
-usage: extract_wav.py [-h] --src_path SRC_PATH [--dst_path DST_PATH] [--merge] [--silence_interval SILENCE_INTERVAL]
+usage: extract_wav.py [-h] --src_path SRC_PATH [--dst_path DST_PATH] [--filename_style {flat,devkit}]
 
-optional arguments:
+options:
   -h, --help            show this help message and exit
-  --src_path SRC_PATH   source ddb file path
-  --dst_path DST_PATH   destination extract path, default to be "./[name]/wav.zip (merge.wav)"
-  --merge               enable to generate a merged large wav file
-  --silence_interval SILENCE_INTERVAL
-                        silence interval seconds when "merge" is enabled, default to be 0
+  --src_path SRC_PATH   source ddi file path
+  --dst_path DST_PATH   destination extract path, default to be "./[name]/snd"
+  --filename_style {flat,devkit}
+                        output filename style, default to be 'devkit'.
 ```
 
 ```
@@ -65,14 +64,6 @@ optional arguments:
   -h, --help           show this help message and exit
   --src_path SRC_PATH  source ddb file path
   --dst_path DST_PATH  destination extract path, default to be "./[name]/frm2.zip"
-```
-
-```
-usage: rename_wav.py [-h] --work_dir WORK_DIR
-
-optional arguments:
-  -h, --help           show this help message and exit
-  --work_dir WORK_DIR  working directory containing "ddi.yml" and "wav.zip".
 ```
 
 ```
