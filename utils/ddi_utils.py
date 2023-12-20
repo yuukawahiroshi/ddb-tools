@@ -16,7 +16,7 @@ art_type = dict[str, str | dict[int, artu_type | dict]]
 #     epr: list[str]
 #     ddi_snd_pos: int
 #     snd_offset: int
-#     snd_cutoff: int
+#     snd_start: int
 
 
 def bytes_to_str(data: bytes, add_spaces: bool = True) -> str:
@@ -220,7 +220,7 @@ class DDIModel:
                     art_dict[key] = []
                     for artp in artu['artp'].values():
                         art_dict[key].append({'snd': artp['snd'],
-                                            'snd_cutoff': artp['snd_cutoff'],
+                                            'snd_start': artp['snd_start'],
                                             'epr': artp['epr'],
                                             'pitch': artp['pitch1']})
             if 'art' in art.keys():
@@ -232,7 +232,7 @@ class DDIModel:
                             art_dict[key] = []
                             for artp in artu['artp'].values():
                                 art_dict[key].append({'snd': artp['snd'],
-                                                    'snd_cutoff': artp['snd_cutoff'],
+                                                    'snd_start': artp['snd_start'],
                                                     'epr': artp['epr'],
                                                     'pitch': artp['pitch1']})
         self.ddi_data_dict['art'] = {key: art_dict[key]
@@ -549,12 +549,32 @@ class DDIModel:
 
                 snd_offset2_pos = self.ddi_data.tell()
                 snd_offset2 = int.from_bytes(self.ddi_data.read(8), byteorder='little')  # == snd_offset+0x800  Exception: Tonio.ddi (0)
-                artp_data['snd_cutoff'] = f'{snd_offset2_pos:08x}={snd_offset2-0x12:016x}_{snd_identifier:08x}'
+                artp_data['snd_start'] = f'{snd_offset2_pos:08x}={snd_offset2-0x12:016x}_{snd_identifier:08x}'
 
-                ddi_bytes: bytes = self.ddi_bytes[self.ddi_data.tell():]
-                unknown2_length = ddi_bytes.find(b'default')-4
-                artp_data['unknown4'] = bytes_to_str(self.ddi_data.read(
-                    unknown2_length))
+                ddi_bytes: bytes = self.ddi_bytes[self.ddi_data.tell():self.ddi_data.tell() + 1024]
+                align_length = ddi_bytes.find(b'default')-4
+                align_bytes = self.ddi_data.read(align_length)
+                frame_align = []
+                if align_length > 4:
+                    align_group_num = int.from_bytes(align_bytes[0:4], byteorder='little')
+                    # In V3 format, each group has int32 * 4 bytes
+                    align_bytes = align_bytes[4:]
+                    align_io = io.BytesIO(align_bytes)
+                    for _ in range(0, align_group_num):
+                        frame_align_group = {
+                            "start": int.from_bytes(align_io.read(4), byteorder='little'),
+                            "end": int.from_bytes(align_io.read(4), byteorder='little'),
+                            "start2": int.from_bytes(align_io.read(4), byteorder='little'),
+                            "end2": int.from_bytes(align_io.read(4), byteorder='little'),
+                        }
+                        frame_align.append(frame_align_group)
+                else: # V2 format
+                    frame_align_group = []
+                    for i in range(0, len(align_bytes), 4):
+                        frame_align_group.append(int.from_bytes(align_bytes[i:i+4], byteorder='little'))
+                    frame_align.append(frame_align_group)
+                artp_data['frame_align'] = frame_align
+                
                 assert read_str(self.ddi_data) == 'default'
 
                 assert artp_idx not in artu_data['artp'].keys()

@@ -125,7 +125,7 @@ def main():
                     ddi_snd_pos, t = art_item["snd"].split("=")
                     snd_offset, _ = t.split("_")
 
-                    ddi_snd_pos2, t = art_item["snd_cutoff"].split("=")
+                    ddi_snd_pos2, t = art_item["snd_start"].split("=")
                     snd_offset2, _ = t.split("_")
 
                     ddi_snd_pos = int(ddi_snd_pos, 16)
@@ -142,11 +142,11 @@ def main():
                         raise Exception("Articulation file \"%s\" is broken" % art_file)
                     
                     snd_len = int.from_bytes(art_data.read(4), byteorder='little')
-                    snd_cutoff = snd_offset + snd_len
+                    snd_start = snd_offset + snd_len
 
                     ddb_snd_offset = ddb_f.tell() + 0x12
 
-                    snd_bytes = art_bytes[snd_offset:snd_cutoff]
+                    snd_bytes = art_bytes[snd_offset:snd_start]
 
                     hed = snd_bytes[0:4]
                     if hed != b"SND ":
@@ -209,12 +209,12 @@ def main():
                         raise Exception("Stationary file \"%s\" is broken" % sta_file)
                     
                     snd_len = int.from_bytes(sta_data.read(4), byteorder='little')
-                    snd_cutoff = real_snd_offset + snd_len
+                    snd_start = real_snd_offset + snd_len
 
                     delta_snd_offset = snd_offset - real_snd_offset
                     ddb_snd_offset = ddb_f.tell() + delta_snd_offset
 
-                    snd_bytes = sta_bytes[real_snd_offset:snd_cutoff]
+                    snd_bytes = sta_bytes[real_snd_offset:snd_start]
 
                     ddb_f.write(snd_bytes)
 
