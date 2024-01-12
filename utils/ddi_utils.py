@@ -255,7 +255,7 @@ class DDIModel:
                         | str]
         phdc_data = {}
         # PHDC
-        phoneme_data: dict[int, list[str]] = {0: [], 1: []}
+        phoneme_data: dict[str, list[str]] = {"voiced": [], "unvoiced": []}
         assert self.ddi_data.read(4).decode() == 'PHDC'
         phdc_size = int.from_bytes(self.ddi_data.read(4), byteorder='little')
         assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 4
@@ -264,15 +264,18 @@ class DDIModel:
             bytes_str = self.ddi_data.read(0x1F)
             assert bytes_str[-1] in [0, 1]
             real_data = bytes_str[:-1].decode().strip('\x00')
-            phoneme_data[bytes_str[-1]].append(real_data)
+
+            phoneme_type = "voiced" if bytes_str[-1] == 0 else "unvoiced"
+
+            phoneme_data[phoneme_type].append(real_data)
         phdc_data['phoneme'] = phoneme_data
 
         # PHG2
         phg2_data: dict[str, dict[int, str]] = {}
         assert self.ddi_data.read(4).decode() == 'PHG2'
         phg2_size = int.from_bytes(self.ddi_data.read(4), byteorder='little')
-        phg2_category_num = int.from_bytes(self.ddi_data.read(4), byteorder='little')
-        for i in range(phg2_category_num):
+        phg2_epr_guide_num = int.from_bytes(self.ddi_data.read(4), byteorder='little')
+        for i in range(phg2_epr_guide_num):
             phg2_key = read_str(self.ddi_data)
             phg2_data[phg2_key] = {}
             temp_num = int.from_bytes(self.ddi_data.read(4), byteorder='little')
@@ -282,21 +285,21 @@ class DDIModel:
             assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 0
         phdc_data['phg2'] = phg2_data
 
-        # category
-        category_data: dict[str, list[str]] = {}
-        category_num = int.from_bytes(self.ddi_data.read(4), byteorder='little')
-        category_size = phdc_size-phg2_size-0x10-0x1F*phoneme_num-4
-        category_bytes = self.ddi_data.read(category_size)
+        # epr_guide
+        epr_guide_data: dict[str, list[str]] = {}
+        epr_guide_num = int.from_bytes(self.ddi_data.read(4), byteorder='little')
+        epr_guide_size = phdc_size-phg2_size-0x10-0x1F*phoneme_num-4
+        epr_guide_bytes = self.ddi_data.read(epr_guide_size)
         offset = 0
-        for i in range(category_num):
-            key = category_bytes[offset:offset+0x20].decode().strip('\x00')
-            assert int.from_bytes(category_bytes[offset+0x20:offset+0x24],
+        for i in range(epr_guide_num):
+            key = epr_guide_bytes[offset:offset+0x20].decode().strip('\x00')
+            assert int.from_bytes(epr_guide_bytes[offset+0x20:offset+0x24],
                                 byteorder='little') == 4
-            category_data[key] = []
+            epr_guide_data[key] = []
             offset += 0x24
-            while(offset < len(category_bytes) and category_bytes[offset] == 0):
-                if category_bytes[offset+7] == 0x40:
-                    value = category_bytes[offset:offset + 7]
+            while(offset < len(epr_guide_bytes) and epr_guide_bytes[offset] == 0):
+                if epr_guide_bytes[offset+7] == 0x40:
+                    value = epr_guide_bytes[offset:offset + 7]
                     start_idx = 0
                     for i in range(7):
                         if value[i] != 0:
@@ -304,14 +307,14 @@ class DDIModel:
                             break
                     # TODO: Need to check carefully. "b'XXX'" and we only take XXX
                     value = bytes_to_str(value[start_idx:])
-                    category_data[key].append(value)
+                    epr_guide_data[key].append(value)
                 else:
-                    assert int.from_bytes(category_bytes[offset:offset + 8],
+                    assert int.from_bytes(epr_guide_bytes[offset:offset + 8],
                                         byteorder='little') == 0
-                    category_data[key].append('')
+                    epr_guide_data[key].append('')
                 offset += 8
-        assert offset == len(category_bytes)
-        phdc_data['category'] = category_data
+        assert offset == len(epr_guide_bytes)
+        phdc_data['epr_guide'] = epr_guide_data
 
         # hash string
         # phdc_data['hash'] = self.ddi_data.read(0x20).decode()
@@ -506,13 +509,15 @@ class DDIModel:
                 # TODO: This doesn't seem to be an index actually
                 artp_idx = int.from_bytes(self.ddi_data.read(8), byteorder='little')
                 assert self.ddi_data.read(4).decode() == 'EMPT'
-                int.from_bytes(self.ddi_data.read(4), byteorder='little')  # == 0 Exception: Tonio.ddi
+                snd_len_empt1 = int.from_bytes(self.ddi_data.read(4), byteorder='little')  # == 0 Exception: Tonio.ddi
+                # artp_data['snd_len_empt1'] = f'{snd_len_empt1:08x}'
                 assert read_str(self.ddi_data) == 'SND'
-                unknown_snd = int.from_bytes(self.ddi_data.read(4), byteorder='little')
-                artp_data['snd_unknown'] = f'{unknown_snd:08x}'
+                snd_len_sta = int.from_bytes(self.ddi_data.read(4), byteorder='little')
+                artp_data['snd_len_sta'] = f'{snd_len_sta:08x}'
                 assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 0
                 assert self.ddi_data.read(4).decode() == 'EMPT'
-                int.from_bytes(self.ddi_data.read(4), byteorder='little')  # == 0 Exception: Tonio.ddi
+                snd_len_empt2 = int.from_bytes(self.ddi_data.read(4), byteorder='little')  # == 0 Exception: Tonio.ddi
+                # artp_data['snd_len_empt2'] = f'{snd_len_empt2:08x}'
                 assert read_str(self.ddi_data) == 'EpR'
                 loc = self.ddi_data.tell()
                 try:
