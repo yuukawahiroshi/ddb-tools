@@ -1,1 +1,1 @@
-pip install pyyaml
+pyyaml
