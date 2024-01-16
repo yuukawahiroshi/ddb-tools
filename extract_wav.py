@@ -56,9 +56,9 @@ def parse_args(args: Sequence[str] = None):  # : list[str]
     parser.add_argument('--dst_path',
                         help='destination extract path, '
                         'default to be "./[name]/snd"')
-    parser.add_argument('--gen_lab', type=bool, default=False,
+    parser.add_argument('--gen_lab', action='store_true',
                         help='generate lab file')
-    parser.add_argument('--gen_seg', type=bool, default=False,
+    parser.add_argument('--gen_seg', action='store_true',
                         help='generate trans, seg, as files')
     parser.add_argument('--filename_style',
                         type=str, choices=['flat', 'devkit'], default=None,
