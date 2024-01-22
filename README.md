@@ -47,16 +47,15 @@ optional arguments:
 ```
 
 ```
-usage: extract_wav.py [-h] --src_path SRC_PATH [--dst_path DST_PATH] [--gen_lab] [--gen_seg] [--filename_style {flat,devkit}]
+usage: extract_wav.py [-h] --src_path SRC_PATH [--dst_path DST_PATH] [--gen_lab] [--gen_seg] [--classify]
 
 options:
-  -h, --help            show this help message and exit
-  --src_path SRC_PATH   source ddi file path
-  --dst_path DST_PATH   destination extract path, default to be "./[name]/snd"
-  --gen_lab             generate lab file
-  --gen_seg             generate trans, seg, as files
-  --filename_style {flat,devkit}
-                        output filename style, default to be 'devkit', or default to be 'flat' if gen_lab is true.
+  -h, --help           show this help message and exit
+  --src_path SRC_PATH  source ddi file path
+  --dst_path DST_PATH  destination extract path, default to be "./[name]/snd"
+  --gen_lab            generate lab file
+  --gen_seg            generate trans, seg, as files
+  --classify           classify files with index
 ```
 
 ```

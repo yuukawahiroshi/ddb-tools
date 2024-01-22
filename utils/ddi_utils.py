@@ -512,8 +512,8 @@ class DDIModel:
                 snd_len_empt1 = int.from_bytes(self.ddi_data.read(4), byteorder='little')  # == 0 Exception: Tonio.ddi
                 # artp_data['snd_len_empt1'] = f'{snd_len_empt1:08x}'
                 assert read_str(self.ddi_data) == 'SND'
-                snd_len_sta = int.from_bytes(self.ddi_data.read(4), byteorder='little')
-                artp_data['snd_len_sta'] = f'{snd_len_sta:08x}'
+                snd_len_phoneme = int.from_bytes(self.ddi_data.read(4), byteorder='little')
+                artp_data['snd_len_phoneme'] = f'{snd_len_phoneme:08x}'
                 assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 0
                 assert self.ddi_data.read(4).decode() == 'EMPT'
                 snd_len_empt2 = int.from_bytes(self.ddi_data.read(4), byteorder='little')  # == 0 Exception: Tonio.ddi
