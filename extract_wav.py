@@ -168,13 +168,16 @@ def generate_art_seg_files(
     offset_time = nsample2sec(offset_bytes, sample_rate)
     duration_time = nsample2sec(total_bytes, sample_rate)
 
+    boundary_chunks = 0
     if len(phonemes) == 3:  # VCV
         center_phoneme = re.sub("^\^", "", phonemes[1])
-        phonemes = [phonemes[0], center_phoneme, center_phoneme, phonemes[2]]
+        phonemes = [phonemes[0], center_phoneme, phonemes[2]]
+        boundary_chunks = 4
+    else:
+        boundary_chunks = 2
 
-    seg_list: list[list] = []
     boundaries: list[float] = []
-    for i, phoneme in enumerate(phonemes):
+    for i in range(0, boundary_chunks):
         start_time = offset_time + \
             frm2sec(frame_align[i]["start"], sample_rate)
         end_time = offset_time + frm2sec(frame_align[i]["end"], sample_rate)
@@ -183,17 +186,20 @@ def generate_art_seg_files(
             boundaries.append(start_time)
         boundaries.append(end_time)
 
-        seg_list.append([phoneme, start_time, end_time])
+    seg_list: list[list] = []
+    
+    if len(phonemes) == 3:
+        seg_list.append([phonemes[0], boundaries[0], boundaries[1]])
+        seg_list.append([phonemes[1], boundaries[1], boundaries[3]])
+        seg_list.append([phonemes[2], boundaries[3], boundaries[4]])
+    else:
+        seg_list.append([phonemes[0], boundaries[0], boundaries[1]])
+        seg_list.append([phonemes[1], boundaries[1], boundaries[2]])
 
     art_seg_info: ArticulationSegmentInfo = {
         "boundaries": boundaries,
-        "phonemes": []
+        "phonemes": phonemes,
     }
-
-    if len(phonemes) == 4:  # VCV
-        art_seg_info["phonemes"] = [phonemes[0], phonemes[1], phonemes[3]]
-    else:
-        art_seg_info["phonemes"] = phonemes
 
     trans_content = generate_transcription(seg_list)
     seg_content = generate_seg(seg_list, duration_time)
@@ -237,24 +243,27 @@ def main():
         art_list: list[tuple[int, list, dict]] = []
 
         for art_item in ddi_model.art_data.values():
-            if "artu" in art_item:  # Triphoneme
+            if "artu" in art_item.keys():  # Triphoneme
                 for artu_item in art_item["artu"].values():
-                    if "artp" in artu_item:
+                    i = 0
+                    phonemes = [art_item["phoneme"],
+                                artu_item["phoneme"]]
+                    for artp_item in artu_item["artp"].values():
+                        art_list.append((i, phonemes, artp_item))
+                        i += 1
+            if "art" in art_item.keys():
+                for sub_art in art_item["art"].values():
+                    if "artu" in sub_art.keys():
                         i = 0
-                        for artp_item in artu_item["artp"].values():
+                        for artu_item in sub_art["artu"].values():
                             phonemes = [art_item["phoneme"],
+                                        sub_art["phoneme"],
                                         artu_item["phoneme"]]
-                            art_list.append((i, phonemes, artp_item))
-                            i += 1
-                    if "artu" in artu_item:
-                        for artu2_item in artu_item["artu"].values():
-                            if "artp" in artu2_item:
-                                i = 0
-                                for artp_item in artu2_item["artp"].values():
-                                    phonemes = [
-                                        art_item["phoneme"], artu_item["phoneme"], artu2_item["phoneme"]]
-                                    art_list.append((i, phonemes, artp_item))
-                                    i += 1
+                            print("Triphoneme:", phonemes)
+                            for artp_item in artu_item["artp"].values():
+                                print("triphoneme", phonemes)
+                                art_list.append((i, phonemes, artp_item))
+                                i += 1
 
         for art_item in art_list:
             idx = art_item[0]
