@@ -26,6 +26,7 @@ def escape_xsampa(xsampa: str) -> str:
         .replace(":", ";")
         .replace("<", "(")
         .replace(">", ")")
+        .replace("*", "•")
     )
     return xsampa
 
@@ -39,6 +40,7 @@ def unescape_xsampa(xsampa: str) -> str:
         .replace(";", ":")
         .replace("(", "<")
         .replace(")", ">")
+        .replace("•", "*")
     )
     return xsampa
 
