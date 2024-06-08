@@ -26,11 +26,11 @@ class VQMMeta(TypedDict):
     snd_id: int
     snd: int
     fs: int
-    unknown1: str
+    duration: float
     pitch1: float
     pitch2: float
     unknown2: float
-    unknown3: float
+    tempo: float
     dynamics: float
 
 def byte_replace(src_bytes: bytes, offset: int, override_len: int, replace_bytes: bytes):
@@ -113,12 +113,13 @@ def _create_vqm_stream(vqm_meta_list: list[VQMMeta]):
         vqm_stream.write((0).to_bytes(4, byteorder='little'))
         vqm_stream.write((0).to_bytes(4, byteorder='little'))
         vqm_stream.write((1).to_bytes(4, byteorder='little'))
-        vqm_stream.write(str_to_bytes(vqm_meta["unknown1"]))
+        vqm_stream.write(struct.pack("<d", vqm_meta["duration"]))
+        vqm_stream.write((1).to_bytes(4, byteorder='little'))
         vqm_stream.write(struct.pack("<f", 224.0)) # Unknown
         vqm_stream.write(struct.pack("<f", vqm_meta["pitch2"]))
         vqm_stream.write(struct.pack("<f", vqm_meta["unknown2"]))
         vqm_stream.write(struct.pack("<f", vqm_meta["dynamics"]))
-        vqm_stream.write(struct.pack("<f", vqm_meta["unknown3"]))
+        vqm_stream.write(struct.pack("<f", vqm_meta["tempo"]))
         vqm_stream.write((0).to_bytes(4, byteorder='little'))
 
         # EpR
@@ -221,7 +222,7 @@ def mixins_vqm(src_ddi_bytes: bytes, output_stream: io.BufferedWriter, mixins_dd
             "pitch1": vqm_info["pitch1"],
             "pitch2": vqm_info["pitch2"],
             "unknown2": vqm_info["unknown2"],
-            "unknown3": vqm_info["unknown3"],
+            "tempo": vqm_info["tempo"],
             "dynamics": vqm_info["dynamics"],
         })
             
@@ -344,7 +345,7 @@ def mixins_sta2vqm(src_ddi_bytes: bytes, output_stream: io.BufferedWriter, mixin
             "pitch1": sta_item["pitch1"],
             "pitch2": sta_item["pitch2"],
             "unknown2": sta_item["unknown2"],
-            "unknown3": sta_item["unknown3"],
+            "tempo": sta_item["tempo"],
             "dynamics": sta_item["dynamics"],
         })
 

@@ -388,12 +388,13 @@ class DDIModel:
                 int.from_bytes(self.ddi_data.read(4), byteorder='little')  # == 0 Exception: Tonio.ddi
                 assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 0
                 assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 1
-                stap_data['unknown1'] = bytes_to_str(self.ddi_data.read(0x0a))
+                stap_data['duration'] = struct.unpack('<d', self.ddi_data.read(8))[0]
+                assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 1
                 stap_data['pitch1'] = struct.unpack('<f', self.ddi_data.read(4))[0]
                 stap_data['pitch2'] = struct.unpack('<f', self.ddi_data.read(4))[0]
                 stap_data['unknown2'] = struct.unpack('<f', self.ddi_data.read(4))[0]
                 stap_data['dynamics'] = struct.unpack('<f', self.ddi_data.read(4))[0]
-                stap_data['unknown3'] = struct.unpack('<f', self.ddi_data.read(4))[0]
+                stap_data['tempo'] = struct.unpack('<f', self.ddi_data.read(4))[0]
                 
                 assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 0
                 assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 2
@@ -494,12 +495,13 @@ class DDIModel:
                 int.from_bytes(self.ddi_data.read(4), byteorder='little')  # == 0 Exception: Tonio.ddi
                 assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 0
                 assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 1
-                artp_data['unknown1'] = bytes_to_str(self.ddi_data.read(0x0a))
+                artp_data['duration'] = struct.unpack('<d', self.ddi_data.read(8))[0]
+                assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 1
                 artp_data['pitch1'] = struct.unpack('<f', self.ddi_data.read(4))[0]
                 artp_data['pitch2'] = struct.unpack('<f', self.ddi_data.read(4))[0]
                 artp_data['unknown2'] = struct.unpack('<f', self.ddi_data.read(4))[0]
                 artp_data['dynamics'] = struct.unpack('<f', self.ddi_data.read(4))[0]
-                artp_data['unknown3'] = struct.unpack('<f', self.ddi_data.read(4))[0]
+                artp_data['tempo'] = struct.unpack('<f', self.ddi_data.read(4))[0]
                 # print(f'art {i:4d} {j:4d} {unknown}')
                 # if env['unknown'] is None:
                 #     env['unknown'] = unknown
@@ -625,13 +627,14 @@ class DDIModel:
             assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 0
             assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 0
             assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 1
-            vqmp_data['unknown1'] = bytes_to_str(self.ddi_data.read(0x0a))
+            vqmp_data['duration'] = struct.unpack('<d', self.ddi_data.read(8))[0]
+            assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 1
             vqmp_data['pitch1'] = struct.unpack('<f', self.ddi_data.read(4))[0]
             vqmp_data['pitch2'] = struct.unpack('<f', self.ddi_data.read(4))[0]
             vqmp_data['unknown2'] = struct.unpack('<f', self.ddi_data.read(4))[0]
             vqmp_data['dynamics'] = struct.unpack('<f', self.ddi_data.read(4))[0]
             # TODO: that may not be same as env['unknown']
-            vqmp_data['unknown3'] = struct.unpack('<f', self.ddi_data.read(4))[0]
+            vqmp_data['tempo'] = struct.unpack('<f', self.ddi_data.read(4))[0]
             assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 0
             assert self.ddi_data.read(4) == b'\xFF'*4
             epr_num = int.from_bytes(self.ddi_data.read(4), byteorder='little')
