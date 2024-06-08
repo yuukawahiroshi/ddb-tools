@@ -389,7 +389,7 @@ class DDIModel:
                 assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 0
                 assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 1
                 stap_data['duration'] = struct.unpack('<d', self.ddi_data.read(8))[0]
-                assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 1
+                assert int.from_bytes(self.ddi_data.read(2), byteorder='little') == 1
                 stap_data['pitch1'] = struct.unpack('<f', self.ddi_data.read(4))[0]
                 stap_data['pitch2'] = struct.unpack('<f', self.ddi_data.read(4))[0]
                 stap_data['unknown2'] = struct.unpack('<f', self.ddi_data.read(4))[0]
@@ -496,7 +496,7 @@ class DDIModel:
                 assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 0
                 assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 1
                 artp_data['duration'] = struct.unpack('<d', self.ddi_data.read(8))[0]
-                assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 1
+                assert int.from_bytes(self.ddi_data.read(2), byteorder='little') == 1
                 artp_data['pitch1'] = struct.unpack('<f', self.ddi_data.read(4))[0]
                 artp_data['pitch2'] = struct.unpack('<f', self.ddi_data.read(4))[0]
                 artp_data['unknown2'] = struct.unpack('<f', self.ddi_data.read(4))[0]
@@ -628,7 +628,7 @@ class DDIModel:
             assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 0
             assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 1
             vqmp_data['duration'] = struct.unpack('<d', self.ddi_data.read(8))[0]
-            assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 1
+            assert int.from_bytes(self.ddi_data.read(2), byteorder='little') == 1
             vqmp_data['pitch1'] = struct.unpack('<f', self.ddi_data.read(4))[0]
             vqmp_data['pitch2'] = struct.unpack('<f', self.ddi_data.read(4))[0]
             vqmp_data['unknown2'] = struct.unpack('<f', self.ddi_data.read(4))[0]
